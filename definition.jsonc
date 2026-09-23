@@ -1,0 +1,145 @@
+// ============================================================================
+// definition.jsonc
+// ============================================================================
+//   Academic Communications Hub — intake flow (Power Automate / Logic Apps).
+//
+//   What this is: an annotated study of a Microsoft Forms → SharePoint intake
+//   pattern, built for a university marketing team. This excerpt covers the
+//   trigger only, with notes written as I learned the Workflow Definition
+//   Language. The rest of the flow (read response, create item, audit log,
+//   request-type routing) will continue in later commits.
+//
+//   Sanitised: all organisation-specific identifiers (tenant URL, form ID, list
+//   GUIDs) are removed or replaced with placeholders. Field and step names are
+//   illustrative. Nothing here is credentials, response data, or a live endpoint.
+//
+//   Author: Connor Durkin · github.com/csdurkin
+// ============================================================================
+
+// ============================================================================
+// TERMS (quick reference)
+// ============================================================================
+//   Trigger        the event that starts the flow
+//   Action         one step after the trigger; runs in "runAfter" order
+//   type           the step's category (e.g. OpenApiConnectionWebhook)
+//   inputs         what the step needs: parameters, host, authentication
+//   Connector      pre-built bridge to a service (Forms, SharePoint, OpenAI)
+//   Connection     your authenticated instance of a connector
+//   Operation      one action a connector offers (e.g. CreateFormWebhook)
+//   Webhook        service pushes to the flow on an event (vs Polling: flow checks)
+//   splitOn        de-batches an array: one run per item, not per batch
+//   Function       one built-in operation, returns a value (triggerOutputs())
+//   Expression     the whole formula after @, one or many functions
+//   @              evaluate as expression, not literal text
+//   ?              null-safe: return null if missing, don't crash
+//   ['name']       access a property by name
+//   /              navigate nested levels (body/value)
+//   $              system-reserved parameter ($authentication)
+//   shared_        standard Microsoft connector
+// ============================================================================
+
+
+{
+  "definition": {
+
+    // 1. TRIGGERS
+    // Notes:
+    // - What is this? Named object, not just array. Holds string keys, the trigger's name that uses underscores.
+    // - Why underscores? Object keys that name steps can't contain spaces in JSON. Power Automate UR will show them with spaces. Engine swaps spcaces for underscores.
+    // - So use underscores or spaces? In the code, use underscore version.
+    // - Single / Multiple triggers: Usually only one, but capable of holding more.
+
+
+    "triggers": {
+
+      //Trigger Label: Matches the trigger seen in flow, but with underscores.
+      //TO DO: Confirm flow and code match.
+      "Marketing_Form_Submission":
+       {
+
+        //SplitOn: Trigger setting that takes incoming array and debatches it, running a flow once per item, not once for the full batch.
+          //Batches of Items: Single trigger event can hand code an array of things, not just one. splitOn resolves each.
+          //Batches at Once: Not for form submissions, but more frequent when listing new rows or queing events for example.
+          //SplitOn Syntax:
+            //triggerOutputs(): Built in function that return everything the trigger produced (entire object). Gives raw output of trigger.
+            //?: null-safe operator, null-condiition. "If the thing doesn't exist, don't crash, return null."
+            //['...']: brackent notion for accessing a property by name. So, obj['body'] = obj.body in Javascript, but this language uses brackets
+            //'body/vale': the property path. Using / allows for navigation of nested level. In Javascript: triggerOutputs().body.value
+        "splitOn": "@triggerOutputs()?['body/value']",
+
+
+        //TYPE AND INPUTS
+        // Every step (trigger or action) has a type and inputs. Universal shape.
+
+        //TYPE
+          //Purpose: Tells engine what kind of step this is.
+
+          //OpenApiConnectionWebhook: Step talks to a connector that described by an OPENAPI spec (standing for defining REST APIs).
+          //                          Call an external service through the connector.
+          //                          Inclusion of 'Webhook' - 'a connector based step that registers a webhook and waits to be called'
+          //                          Webhook - external service calls the flow automatically when an event occurs, rather than flow repeatedly checking for one.
+          //Why Webhook Version: The trigger is waiting for a form submission that could come at any time, and webhook can be idle and woken up.
+
+        //OTHER TYPES
+          //OpenApiConnection: norrmal call to a connector, sends a request, gets a response back, no waiting for a push
+          //Compose: build or stores a value. Useufl for fholding a result, formatting data, or reusing somethign later in flow.
+          //Http: Makes a raw HTTP request to any URL directly, no connector. When you need to call an API that has no pre-built connector
+          //Foreach: loops over an arr, running its inner steps once per item
+          //If: a conditional branch, runs one set of steps if a condition is true, another is false.
+
+        //USEFUL DEFINITIONS:
+          //Polling: the opposit of webhook, checks "anything new" on a schedule. Slower and more resource heavy.
+          //Connector: Pre-built bridge to external services (Forms, Outlook, Azure OpenAI). Handles PAI calls and auth for you.
+          //Connection: authenticated instance of connector.
+
+        //What's happening here: Power Automate registers a webhook with Microsoft Forms so that Forms pushes each new submission to the flow the moment it arrives, waking the flow to run automatically, once per response.
+
+        "type": "OpenApiConnectionWebhook",
+
+        //Inputs: Everything the step needs to run: target, value, credentials.
+        //Three Subparts of Inputs seen here: parameters, host, authentication
+        "inputs": {
+
+          //Parameters: Step specific values
+          //form_id parameter: long string that idenifty which form used in connection. Long ID, base64-ish encording.
+          //TO DO: Insert form ID
+          "parameters": {
+            "form_id": ""
+          },
+
+          //host: which connector and operation to use.
+          //apiID: full rource path identifying which connector. Read like a folder path: Under Microsoft.PowerApps, in ApIs, choose the shared_microsoftforms. Shared_ means standard MS-provided connector (as opposted toa. custom one you'd build). Microsoft.PowerApps is the resource provider (owner).
+          //connectionName: specific, authenticated connection to above connector. Instance of the connector. Automatically named by PowerAutomate. Either a GUID for standard connectors.
+          //operationID: Which action on that connector. A connector offers many operations.
+          //CreateFormWebhook operationID: registers a webhook. The exact function being called.
+          "host": {
+            "apiId": "/providers/Microsoft.PowerApps/apis/shared_microsoftforms",
+            "connectionName": "shared_microsoftforms",
+            "operationId": "CreateFormWebhook"
+          },
+
+          //Authentication: how step proves it is allowed to make the call. Here @parameters('@unthentication') means using the flows stored credentials. Token is referenced, not writen into file.
+
+          // Workflow Definition Language:
+          //   - CamalCase for types and operations, the engine-defined identifiers (OpenApiConnectionWebhook, CreateFormWebhook).
+          //   - snake_case / underscores for labels and inputs (new_form_submissions, form_id)
+          //   - shared_: standard Microsoft connector
+          //   - $ prefix = system-served paramater
+          //   - @ prefix = evaluate this as an expression
+          //   - ? before a bracket = null-safe access
+          //   - / inside a property path = navigate nested levels.
+
+          // EXPRESSIONS and FUNCTIONS
+            // - Function: single built-in operation, take inputs and returns a value. The verb.
+            // - Expressions: whole formula written after @, which can be one function or many combined together. The full sentence the engine evaluates.
+            // - Difference: A functino is one building block. An expression is the complete thing you write, often several nested functions that resolves to a value
+
+          "authentication": "@parameters('$authentication')"
+        }
+      }
+    },
+
+    // Actions continue in later commits (read response, create item, audit log, routing).
+    "actions": {}
+  }
+}
