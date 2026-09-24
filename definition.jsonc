@@ -9,9 +9,9 @@
 //   Language. The rest of the flow (read response, create item, audit log,
 //   request-type routing) will continue in later commits.
 //
-//   Sanitised: all organisation-specific identifiers (tenant URL, form ID, list
-//   GUIDs) are removed or replaced with placeholders. Field and step names are
-//   illustrative. Nothing here is credentials, response data, or a live endpoint.
+//   Sanitised: no organisation-specific identifiers (tenant URL, form ID, list GUIDs) are included. 
+//   Current placeholders to be replaced with IDs from a personal Microsoft Developer project.
+//   Field and step names are illustrative. Nothing here is credentials, response data, or  a live endpoint.
 //
 //   Author: Connor Durkin · github.com/csdurkin
 // ============================================================================
